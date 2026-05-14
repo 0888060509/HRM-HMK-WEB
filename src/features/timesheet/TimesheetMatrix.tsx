@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Search, ChevronLeft, ChevronRight, Check, Calendar, Plus, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Calendar, Plus, CheckCircle2, Clock, AlertTriangle, HelpCircle, UserX } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../components/ui/dialog';
 import TimesheetApprovalTab from '../approvals/TimesheetApprovalTab';
+import TicketProcessingFlow from '../approvals/TicketProcessingFlow';
+import { Ticket, TicketStatus } from '../approvals/types';
 
 type Status = 'on_time' | 'ot' | 'late' | 'missing_out' | 'no_punch' | 'off';
 
@@ -86,6 +88,7 @@ export default function TimesheetMatrix() {
   
   const [selectedRecord, setSelectedRecord] = useState<EmpRecord | null>(null);
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [mockTicket, setMockTicket] = useState<Ticket | null>(null);
 
   const handleOpenApproval = (ticketId?: string) => {
     setSelectedTicketId(ticketId || null);
@@ -94,6 +97,34 @@ export default function TimesheetMatrix() {
 
   const handleRecordClick = (record: EmpRecord) => {
       setSelectedRecord(record);
+      
+      // Build a mock ticket if actionable
+      if (record.status !== 'on_time' && record.status !== 'off') {
+         // In a real app, status 'adhoc' would apply if the user punched without a schedule.
+         // Here 'no_punch' means scheduled but no punches recorded -> 'missing' (both).
+         // 'missing_out' means one punch is missing.
+         // 'late', 'ot' -> 'abnormal'
+         const type = (record.status === 'missing_out' || record.status === 'no_punch') ? 'missing' : 'abnormal';
+         
+         const timeParts = record.time ? record.time.split(' - ') : [];
+         const inTime = timeParts[0] && timeParts[0] !== '--' ? timeParts[0] : '';
+         const outTime = timeParts[1] && timeParts[1] !== '--' ? timeParts[1] : '';
+
+         setMockTicket({
+            id: 'TK-' + Math.floor(Math.random() * 1000 + 1000),
+            employeeName: record.name,
+            code: 'NV-MOCK',
+            date: '20/05/2026',
+            type,
+            status: 'pending',
+            standardShift: { start: '08:00', end: '17:00' },
+            actualTime: { in: inTime, out: outTime },
+            reason: record.note,
+         });
+      } else {
+         setMockTicket(null);
+      }
+
       setIsRecordModalOpen(true);
   };
   
@@ -141,6 +172,20 @@ export default function TimesheetMatrix() {
                         </Select>
                     </div>
 
+                    <div className="w-40 shrink-0 hidden lg:block">
+                        <Select defaultValue="all-status">
+                            <SelectTrigger className="h-9 border-gray-300 text-sm focus:ring-1 focus:ring-blue-400 bg-white">
+                                <SelectValue placeholder="Trạng thái" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all-status">Tất cả trạng thái</SelectItem>
+                                <SelectItem value="late">Đi muộn / Về sớm</SelectItem>
+                                <SelectItem value="missing_out">Chấm công thiếu</SelectItem>
+                                <SelectItem value="no_punch">Unscheduled / Lỗi</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
                     <div className="flex items-center bg-white border border-gray-300 rounded-md shadow-sm shrink-0">
                         <Button variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-none rounded-l-md hover:bg-gray-100 text-gray-600"><ChevronLeft size={16} /></Button>
                         <div className="flex items-center px-3 h-9 border-x border-gray-200 bg-white text-sm font-medium text-gray-700 whitespace-nowrap cursor-pointer hover:bg-gray-50 transition-colors">
@@ -179,38 +224,38 @@ export default function TimesheetMatrix() {
         <div className="flex-1 overflow-auto bg-gray-50/50 flex flex-col pt-4 px-4 pb-0">
           <div className="min-w-[1280px] border border-gray-200 rounded-t-lg bg-white shadow-sm flex flex-col relative w-full h-full overflow-hidden">
           {/* Header Row */}
-          <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b border-gray-200 sticky top-0 z-20 bg-white text-gray-600">
-             <div className="p-3.5 border-r border-gray-200 sticky left-0 z-30 bg-white flex items-center justify-between shadow-[1px_0_0_0_#e5e7eb]">
-                <span className="font-bold text-sm text-gray-900">Ca làm việc</span>
+          <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b border-gray-200 sticky top-0 z-20 bg-white text-gray-600 shadow-sm">
+             <div className="p-3.5 border-r border-gray-200 sticky left-0 z-30 bg-gray-50 flex items-center justify-between shadow-[1px_0_0_0_#e5e7eb]">
+                <span className="font-bold text-sm text-gray-900 uppercase">Ca làm việc</span>
                 <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-500 hover:bg-gray-100"><Plus size={14} /></Button>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ hai</span>
-                 <span className="font-semibold text-gray-900 text-sm">20</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm">Thứ Hai</span>
+                 <span className="text-xs text-gray-500 font-medium">20/05</span>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ ba</span>
-                 <span className="font-semibold text-gray-900 text-sm">21</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm">Thứ Ba</span>
+                 <span className="text-xs text-gray-500 font-medium">21/05</span>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ tư</span>
-                 <span className="font-semibold text-gray-900 text-sm">22</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm">Thứ Tư</span>
+                 <span className="text-xs text-gray-500 font-medium">22/05</span>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ năm</span>
-                 <span className="font-semibold text-gray-900 text-sm">23</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm">Thứ Năm</span>
+                 <span className="text-xs text-gray-500 font-medium">23/05</span>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ sáu</span>
-                 <span className="font-semibold text-gray-900 text-sm">24</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm">Thứ Sáu</span>
+                 <span className="text-xs text-gray-500 font-medium">24/05</span>
              </div>
-             <div className="p-3.5 border-r border-gray-200 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Thứ bảy</span>
-                 <span className="font-semibold text-gray-900 text-sm">25</span>
+             <div className="p-3.5 border-r border-gray-200 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm text-blue-600">Thứ Bảy</span>
+                 <span className="text-xs text-blue-500 font-medium">25/05</span>
              </div>
-             <div className="p-3.5 text-center bg-white flex items-center justify-center gap-1.5">
-                 <span className="text-sm font-medium text-gray-600">Chủ nhật</span>
-                 <span className="font-semibold text-gray-900 text-sm">26</span>
+             <div className="p-3.5 bg-white flex flex-col items-center justify-center gap-0.5">
+                 <span className="font-semibold text-gray-900 text-sm text-red-600">Chủ Nhật</span>
+                 <span className="text-xs text-red-500 font-medium">26/05</span>
              </div>
           </div>
           
@@ -237,46 +282,69 @@ export default function TimesheetMatrix() {
                                        let bgClass = '';
                                        let textClass = '';
                                        let noteClass = '';
+                                       let Icon = CheckCircle2;
+                                       let iconColor = '';
                                        
                                        switch(record.status) {
                                            case 'late':
-                                               bgClass = 'bg-[#fdf4ff] border-[#fdf4ff]';
-                                               textClass = 'text-[#86198f]';
-                                               noteClass = 'text-[#a21caf]';
+                                               bgClass = 'bg-purple-50 border-purple-100 hover:border-purple-300';
+                                               textClass = 'text-purple-700';
+                                               noteClass = 'text-purple-600';
+                                               Icon = Clock;
+                                               iconColor = 'text-purple-500';
                                                break;
                                            case 'missing_out':
-                                               bgClass = 'bg-[#fef2f2] border-[#fef2f2]';
-                                               textClass = 'text-[#b91c1c]';
-                                               noteClass = 'text-[#dc2626]';
+                                               bgClass = 'bg-red-50 border-red-100 hover:border-red-300';
+                                               textClass = 'text-red-700';
+                                               noteClass = 'text-red-600';
+                                               Icon = AlertTriangle;
+                                               iconColor = 'text-red-500';
                                                break;
                                            case 'no_punch':
-                                               bgClass = 'bg-[#fff7ed] border-[#fff7ed]';
-                                               textClass = 'text-[#c2410c]';
-                                               noteClass = 'text-[#ea580c]';
+                                               bgClass = 'bg-orange-50 border-orange-100 hover:border-orange-300';
+                                               textClass = 'text-orange-700';
+                                               noteClass = 'text-orange-600';
+                                               Icon = HelpCircle;
+                                               iconColor = 'text-orange-500';
                                                break;
                                            case 'off':
-                                               bgClass = 'bg-gray-50 border-gray-50';
+                                               bgClass = 'bg-gray-50 border-gray-100 hover:border-gray-300 opacity-60 grayscale';
                                                textClass = 'text-gray-500';
                                                noteClass = 'text-gray-400';
+                                               Icon = UserX;
+                                               iconColor = 'text-gray-400';
+                                               break;
+                                           case 'ot':
+                                               bgClass = 'bg-indigo-50 border-indigo-100 hover:border-indigo-300';
+                                               textClass = 'text-indigo-700';
+                                               noteClass = 'text-indigo-600';
+                                               Icon = CheckCircle2;
+                                               iconColor = 'text-indigo-500';
                                                break;
                                            case 'on_time':
-                                           case 'ot':
                                            default:
-                                               bgClass = 'bg-[#eff6ff] border-[#eff6ff]';
-                                               textClass = 'text-[#1d4ed8]';
-                                               noteClass = 'text-[#2563eb]';
+                                               bgClass = 'bg-blue-50 border-blue-100 hover:border-blue-300';
+                                               textClass = 'text-blue-700';
+                                               noteClass = 'text-blue-600';
+                                               Icon = CheckCircle2;
+                                               iconColor = 'text-blue-500';
                                                break;
                                        }
 
                                        return (
                                            <div key={i} 
-                                              className={`rounded w-full border p-2.5 text-xs transition-colors cursor-pointer flex flex-col gap-1 hover:brightness-95 ${bgClass}`}
+                                              className={`rounded w-full border border-l-4 p-2 transition-colors cursor-pointer flex flex-col gap-1 shadow-sm ${bgClass}`}
                                               onClick={() => handleRecordClick(record)}
                                            >
-                                              <div className="font-semibold text-[#0f172a] truncate" title={record.name}>{record.name}</div>
-                                              <div className={`font-mono text-[11px] font-medium ${textClass}`}>{record.time}</div>
+                                              <div className="flex items-start justify-between gap-1">
+                                                 <div className="font-semibold text-gray-900 text-xs truncate" title={record.name}>{record.name}</div>
+                                              </div>
+                                              <div className={`font-mono text-[11px] font-medium flex items-center gap-1.5 ${textClass}`}>
+                                                 <Icon size={12} className={iconColor} strokeWidth={2.5} />
+                                                 {record.time}
+                                              </div>
                                               {record.note && (
-                                                 <div className={`text-[11px] truncate leading-tight mt-0.5 ${noteClass}`} title={record.note}>{record.note}</div>
+                                                 <div className={`text-[10px] truncate leading-tight mt-0.5 ${noteClass}`} title={record.note}>{record.note}</div>
                                               )}
                                            </div>
                                        );
@@ -294,16 +362,17 @@ export default function TimesheetMatrix() {
       {/* Legend */}
       <div className="h-14 bg-white border-t border-gray-200 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-medium text-gray-700 shrink-0 shadow-[0_-2px_6px_rgba(0,0,0,0.02)] z-10 w-full px-4">
          <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-blue-500 fill-blue-50" /> Đúng giờ</span>
-         <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-purple-500 fill-purple-50" /> Đi muộn / Về sớm</span>
-         <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-red-500 fill-red-50" /> Chấm công thiếu</span>
-         <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-orange-500 fill-orange-50" /> Chưa chấm công</span>
-         <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-gray-400 fill-gray-50" /> Nghỉ làm</span>
+         <span className="flex items-center gap-2"><CheckCircle2 size={16} className="text-indigo-500 fill-indigo-50" /> Có OT</span>
+         <span className="flex items-center gap-2"><Clock size={16} className="text-purple-500 fill-purple-50" /> Đi muộn / Về sớm</span>
+         <span className="flex items-center gap-2"><AlertTriangle size={16} className="text-red-500 fill-red-50" /> Chấm thiếu giờ</span>
+         <span className="flex items-center gap-2"><HelpCircle size={16} className="text-orange-500 fill-orange-50" /> Unscheduled / Lỗi</span>
+         <span className="flex items-center gap-2"><UserX size={16} className="text-gray-400 fill-gray-50" /> Nghỉ làm</span>
       </div>
      </TabsContent>
 
      {/* Record Details Modal */}
      <Dialog open={isRecordModalOpen} onOpenChange={setIsRecordModalOpen}>
-       <DialogContent className="sm:max-w-[450px]">
+       <DialogContent className={mockTicket ? "sm:max-w-[700px] max-h-[90vh] overflow-y-auto" : "sm:max-w-[450px]"}>
          <DialogHeader>
            <DialogTitle>Chi tiết ca làm việc</DialogTitle>
          </DialogHeader>
@@ -320,11 +389,11 @@ export default function TimesheetMatrix() {
              <div className="grid grid-cols-[140px_1fr] items-center text-sm gap-2">
                 <span className="font-medium text-gray-500">Trạng thái</span>
                 <span className="font-medium">{
-                    selectedRecord.status === 'on_time' ? 'Đúng giờ' :
-                    selectedRecord.status === 'ot' ? 'Làm thêm ca' :
-                    selectedRecord.status === 'late' ? 'Đi muộn / Về sớm' :
-                    selectedRecord.status === 'missing_out' ? 'Chấm công thiếu' :
-                    selectedRecord.status === 'no_punch' ? 'Chưa chấm công' : 'Nghỉ làm'
+                    selectedRecord.status === 'on_time' ? <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded">Đúng giờ</span> :
+                    selectedRecord.status === 'ot' ? <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">Có OT</span> :
+                    selectedRecord.status === 'late' ? <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded">Đi muộn / Về sớm</span> :
+                    selectedRecord.status === 'missing_out' ? <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded">Chấm công thiếu</span> :
+                    selectedRecord.status === 'no_punch' ? <span className="text-orange-600 bg-orange-50 px-2 py-0.5 rounded">Unscheduled / Lỗi</span> : <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded">Nghỉ làm</span>
                 }</span>
              </div>
              {selectedRecord.note && (
@@ -334,20 +403,23 @@ export default function TimesheetMatrix() {
                   </div>
              )}
              
-             <div className="pt-4 border-t flex gap-2 justify-end mt-4">
-                 <Button variant="outline" onClick={() => setIsRecordModalOpen(false)}>Đóng</Button>
-                 {(selectedRecord.status !== 'on_time' && selectedRecord.status !== 'off') && (
-                     <Button 
-                       className="bg-blue-600 hover:bg-blue-700 text-white" 
-                       onClick={() => {
-                           setIsRecordModalOpen(false);
-                           handleOpenApproval('TK-' + Math.floor(Math.random() * 1000 + 1000));
-                       }}
-                     >
-                         Xử lý yêu cầu
-                     </Button>
-                 )}
-             </div>
+             {mockTicket ? (
+                 <div className="mt-6 border-t pt-4">
+                    <h3 className="font-semibold text-lg tracking-tight text-gray-900 border-l-4 border-blue-500 pl-3 mb-4">Quy trình Phê duyệt</h3>
+                    <TicketProcessingFlow 
+                       ticket={mockTicket} 
+                       onCloseTicket={(id, status) => {
+                          setIsRecordModalOpen(false);
+                          // We mock updating the cell here visually by just closing
+                       }} 
+                       onUpdateTicket={setMockTicket} 
+                    />
+                 </div>
+             ) : (
+                 <div className="pt-4 border-t flex gap-2 justify-end mt-4">
+                     <Button variant="outline" onClick={() => setIsRecordModalOpen(false)}>Đóng</Button>
+                 </div>
+             )}
            </div>
          )}
        </DialogContent>
